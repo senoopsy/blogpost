@@ -328,6 +328,35 @@ This section details every roadblock, bug, or architectural mistake encountered,
 
 ---
 
+### 🚨 Roadblock 8: GitHub Actions CD Failure Due to Missing Node.js on EC2 (`npm: command not found`)
+- **Symptom**:
+  In GitHub Actions, the Continuous Integration (CI) job passed 100%, but the Continuous Deployment (CD) job `Deploy to AWS EC2` failed with exit code 127:
+  ```bash
+  bash: line 8: npm: command not found
+  ```
+- **The Core Question / Architectural Paradox**:
+  *"If Node.js wasn't installed on the server, why was the production website already working live and perfectly on https://senoopsy.com earlier?"*
+- **Root-Cause Analysis (Runtime vs. Build Time)**:
+  - **At Run Time (Serving Visitors)**:
+    React is a client-side technology. Once compiled, it consists solely of static text files (`index.html`, `index.css`, `index.js`). **Nginx (written in C)** serves these files directly from the hard drive (`/var/www/senoopsy/dist`) to the visitor's browser. The visitor's browser runs the JavaScript. The backend runs inside Python. **Node.js is NEVER running and consumes 0% CPU and 0 MB RAM at runtime.**
+  - **At Build Time (Compiling Code)**:
+    In GitHub, you only store raw TypeScript (`.tsx`) source code; the compiled `dist/` directory is intentionally git-ignored. When GitHub Actions SSHes into EC2 to deploy, it pulls the raw `.tsx` files and needs a **compiler** to run `npm run build` and produce the new HTML/JS files.
+  - **Why it worked earlier**:
+    During initial testing, the compilation happened on the developer's **MacBook**, and the pre-built `dist/` folder was copied over. But when we automated deployments via GitHub Actions, the server had to build the files autonomously without relying on anyone's laptop.
+- **Solution**:
+  1. Installed Node.js 20.x LTS and npm on the Ubuntu EC2 host:
+     ```bash
+     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+     sudo apt-get install -y nodejs
+     ```
+  2. Verified installation: `node -v` (`v20.20.2`) and `npm -v` (`10.8.2`).
+  3. Re-triggered the GitHub Actions CI/CD workflow:
+     - **CI Job (Build & Validate)**: Passed ✅
+     - **CD Job (Deploy to AWS EC2)**: Passed ✅
+     - **Total Pipeline Status**: 100% Success (Green Checkmark 🟢).
+
+---
+
 ## 7. Current Production State & Live Endpoints
 
 The application is fully operational in production:
