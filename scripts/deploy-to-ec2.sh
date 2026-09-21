@@ -38,30 +38,37 @@ ssh -i "$KEY_PATH" -o ConnectTimeout=8 -o BatchMode=yes -o StrictHostKeyChecking
 }
 echo -e "${GREEN}✅ SSH connection established.${NC}"
 
-# Build frontend locally for fast rollout
-echo -e "\n${BLUE}[2/5] Compiling React production bundle locally...${NC}"
-cd "$ROOT_DIR/frontend"
-npm run build
-cd "$ROOT_DIR"
-echo -e "${GREEN}✅ Frontend built successfully in frontend/dist.${NC}"
+# Pull latest code from GitHub on EC2
+echo -e "\n${BLUE}[2/4] Pulling latest code directly from GitHub (senoopsy/blogpost) on EC2...${NC}"
+ssh -i "$KEY_PATH" "${EC2_USER}@${EC2_HOST}" 'bash -s' << 'PULL_COMMANDS'
+set -e
+APP_DIR="/home/ubuntu/blog-aggregator"
 
-# Sync code to EC2
-echo -e "\n${BLUE}[3/5] Synchronizing codebase to EC2 (~/blog-aggregator)...${NC}"
-ssh -i "$KEY_PATH" "${EC2_USER}@${EC2_HOST}" "mkdir -p ~/blog-aggregator"
-rsync -avz -e "ssh -i $KEY_PATH -o StrictHostKeyChecking=accept-new" \
-    --exclude 'node_modules' \
-    --exclude 'venv' \
-    --exclude '.git' \
-    --exclude '.DS_Store' \
-    --exclude '__pycache__' \
-    --exclude 'backend.log' \
-    "$ROOT_DIR/" "${EC2_USER}@${EC2_HOST}:~/blog-aggregator/"
-echo -e "${GREEN}✅ Codebase synced.${NC}"
+if [ ! -d "$APP_DIR/.git" ]; then
+    echo "Cloning repository from GitHub..."
+    git clone https://github.com/senoopsy/blogpost.git "$APP_DIR"
+fi
+
+cd "$APP_DIR"
+echo "Fetching from origin main..."
+git fetch origin main
+git reset --hard origin/main
+echo "EC2 working tree is now synchronized with GitHub main commit: $(git rev-parse --short HEAD)"
+PULL_COMMANDS
+echo -e "${GREEN}✅ EC2 synchronized with GitHub.${NC}"
 
 # Configure server and launch containers
-echo -e "\n${BLUE}[4/5] Provisioning Nginx and starting production Docker stack on EC2...${NC}"
+echo -e "\n${BLUE}[3/4] Provisioning Nginx and building production stack on EC2...${NC}"
 ssh -i "$KEY_PATH" "${EC2_USER}@${EC2_HOST}" 'bash -s' << 'REMOTE_COMMANDS'
 set -e
+
+APP_DIR="/home/ubuntu/blog-aggregator"
+cd "$APP_DIR"
+
+echo "--> Building React frontend on EC2..."
+cd "$APP_DIR/frontend"
+npm ci || npm install
+npm run build
 
 echo "--> Stopping conflicting containers on port 80..."
 docker stop devops_frontend_prod devops_backend_prod 2>/dev/null || true
