@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-canvas: #090a0f;
+    --bg-surface: #11131a;
+    --bg-card: #141620;
+    --bg-card-hover: #191c28;
+    --bg-subtle: rgba(255, 255, 255, 0.04);
+    --border-color: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --text-primary: #f4f4f7;
+    --text-secondary: #9ea2b5;
+    --text-muted: #6a6e80;
+    --accent-gold: #f59e0b;
+    --btn-primary-bg: #f4f4f7;
+    --btn-primary-text: #090a0f;
+    color-scheme: dark;
+  }
+
+  html.light, body.light, .light {
+    --bg-canvas: #f6f7f9;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f0f2f5;
+    --bg-subtle: rgba(0, 0, 0, 0.04);
+    --border-color: rgba(0, 0, 0, 0.09);
+    --border-strong: rgba(0, 0, 0, 0.18);
+    --text-primary: #121318;
+    --text-secondary: #4d5162;
+    --text-muted: #7d8296;
+    --accent-gold: #d97706;
+    --btn-primary-bg: #121318;
+    --btn-primary-text: #ffffff;
+    color-scheme: light;
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html, body, #root {
+    @apply h-full;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  h1, h2, h3, .font-editorial {
+    font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+  }
+
+  /* Minimal scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 9999px;
+  }
+
+  /* Hide scrollbar utility for mobile pill ribbons */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  /* Dynamic Theme Surfaces */
+  .surface-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    @apply rounded-xl transition-all duration-150;
+  }
+
+  .surface-card-hover {
+    @apply surface-card;
+  }
+  .surface-card-hover:hover {
+    background-color: var(--bg-card-hover);
+    border-color: var(--border-strong);
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
+  }
+
+  .glass {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color);
+    @apply backdrop-blur-xl border;
+  }
+
+  /* Dynamic Theme Buttons */
+  .btn-primary {
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    @apply px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-semibold text-xs tracking-wide transition-all duration-150 active:scale-[0.98] shadow-sm inline-flex items-center justify-center gap-1.5;
+  }
+  .btn-primary:hover {
+    opacity: 0.92;
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-subtle);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    @apply px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium text-xs tracking-wide transition-all duration-150 active:scale-[0.98] inline-flex items-center justify-center gap-1.5;
+  }
+  .btn-secondary:hover {
+    border-color: var(--border-strong);
+  }
+
+  /* Dynamic Theme Inputs */
+  .glass-input {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    @apply rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400/40 transition-all font-sans;
+  }
+  .glass-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .editorial-rule {
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+/* Drop cap for longform editorial */
+.editorial-body > p:first-of-type::first-letter {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 3.2rem;
+  line-height: 0.85;
+  float: left;
+  margin-right: 0.45rem;
+  margin-top: 0.15rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}

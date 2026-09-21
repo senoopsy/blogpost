@@ -1,0 +1,141 @@
+name: Senoopsy CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # 1. Continuous Integration (CI): Test, Lint & Validate Builds
+  # ============================================================================
+  continuous-integration:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Backend Validation
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate Backend Code
+        working-directory: ./backend
+        run: |
+          python -m py_compile main.py config.py database.py
+
+      # Frontend Validation
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: |
+          npm ci || npm install
+
+      - name: Type-Check & Build React Production Bundle
+        working-directory: ./frontend
+        run: |
+          npm run build
+
+      # Docker Verification
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Production Docker Compose Config
+        run: |
+          docker compose -f docker-compose.prod.yml config
+
+      - name: Test Build Production Backend Container
+        run: |
+          docker compose -f docker-compose.prod.yml build backend
+
+  # ============================================================================
+  # 2. Continuous Deployment (CD): Automated Push to AWS EC2 Instance
+  # ============================================================================
+  continuous-deployment:
+    name: Deploy to AWS EC2
+    needs: continuous-integration
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH to AWS EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            echo "🚀 Starting Deployment on AWS EC2..."
+
+            APP_DIR="/home/ubuntu/blog-aggregator"
+
+            # Check if repository exists or clone
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "Cloning repository..."
+              git clone "https://github.com/${{ github.repository }}.git" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Build and deploy frontend
+            echo "Building React frontend..."
+            cd "$APP_DIR/frontend"
+            npm ci || npm install
+            npm run build
+
+            # Sync to Nginx web root
+            echo "Updating Nginx web root..."
+            sudo mkdir -p /var/www/senoopsy/dist
+            sudo rm -rf /var/www/senoopsy/dist/*
+            sudo cp -r "$APP_DIR/frontend/dist/"* /var/www/senoopsy/dist/
+            sudo chown -R www-data:www-data /var/www/senoopsy
+
+            # Ensure backend .env exists
+            cd "$APP_DIR"
+            if [ ! -f backend/.env ]; then
+              cp backend/.env.example backend/.env 2>/dev/null || cat <<EOF > backend/.env
+            MONGODB_URL=mongodb://mongodb:27017
+            DATABASE_NAME=tech_news_aggregator
+            RSS_UPDATE_INTERVAL_MINUTES=15
+            USE_AI_SUMMARY=false
+            AI_API_KEY=
+            AI_MODEL=llama-3.3-70b-versatile
+            CORS_ORIGINS=http://localhost,http://3.109.3.45
+            EOF
+            fi
+
+            # Deploy backend & MongoDB containers
+            echo "Building and launching Docker containers..."
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            # Reload Nginx
+            sudo nginx -t && sudo systemctl reload nginx
+
+            # Cleanup unused Docker images to save disk space
+            docker image prune -f
+
+            echo "✅ Senoopsy successfully deployed and live on EC2!"

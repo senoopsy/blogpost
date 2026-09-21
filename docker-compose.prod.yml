@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: tech-news-mongodb-prod
+    restart: unless-stopped
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    mem_limit: 384m
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodb_prod_data:/data/db
+    networks:
+      - tech-news-prod-network
+    environment:
+      MONGO_INITDB_DATABASE: ${DATABASE_NAME:-tech_news_aggregator}
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tech-news-backend-prod
+    restart: unless-stopped
+    mem_limit: 450m
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      - mongodb
+    environment:
+      MONGODB_URL: ${MONGODB_URL:-mongodb://mongodb:27017}
+      DATABASE_NAME: ${DATABASE_NAME:-tech_news_aggregator}
+      RSS_UPDATE_INTERVAL_MINUTES: ${RSS_UPDATE_INTERVAL_MINUTES:-15}
+      USE_AI_SUMMARY: ${USE_AI_SUMMARY:-false}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-llama-3.3-70b-versatile}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,https://${DOMAIN:-localhost}}
+    networks:
+      - tech-news-prod-network
+
+volumes:
+  mongodb_prod_data:
+    driver: local
+
+networks:
+  tech-news-prod-network:
+    driver: bridge
